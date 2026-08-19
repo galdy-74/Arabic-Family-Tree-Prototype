@@ -1,0 +1,1438 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!-- =====================================================================
+     برنامج شجرة العائلة الاحترافي — المرحلة الأولى (Prototype)
+     ---------------------------------------------------------------------
+     • ملف واحد فقط: HTML + CSS + JavaScript (Vanilla JS)
+     • لا يوجد اتصال فعلي بقاعدة بيانات — بيانات وهمية للعرض فقط
+     • البنية جاهزة للتحويل لاحقًا إلى: Electron + Realm Database
+     • يعمل بمجرد فتح الملف في المتصفح (file://) دون أي أدوات بناء
+====================================================================== -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="برنامج شجرة العائلة الاحترافي — نموذج أولي لواجهة المستخدم">
+<title>برنامج شجرة العائلة الاحترافي</title>
+
+<!-- أيقونة مؤقتة (Favicon) على شكل شجرة — تُستبدل لاحقًا بأيقونة التطبيق النهائية -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='29' y='34' width='6' height='22' rx='2' fill='%237B4B2A'/%3E%3Ccircle cx='32' cy='22' r='16' fill='%231E8E4E'/%3E%3Ccircle cx='18' cy='30' r='9' fill='%2327A05B'/%3E%3Ccircle cx='46' cy='30' r='9' fill='%2327A05B'/%3E%3C/svg%3E">
+
+<!-- خط Cairo من Google Fonts CDN (الخط الأساسي) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* =====================================================================
+   1) متغيرات الألوان والنظام البصري (CSS Variables)
+   ---------------------------------------------------------------------
+   جميع الألوان معرّفة هنا بحيث يمكن تفعيل الوضع الليلي (المرحلة 5)
+   لاحقًا بمجرد إعادة تعريف المتغيرات دون أي إعادة هيكلة للـ CSS.
+===================================================================== */
+:root{
+  --clr-primary:#0D3B66;          /* اللون الأساسي: أزرق داكن */
+  --clr-primary-dark:#082A4A;
+  --clr-primary-light:#15518C;
+  --clr-primary-050:#EAF1F9;
+  --clr-primary-100:#D5E3F2;
+  --clr-blue:#1D6FD1;             /* الأزرار الرئيسية */
+  --clr-blue-dark:#155AAC;
+  --clr-green:#1E8E4E;            /* زر الحفظ */
+  --clr-green-dark:#15703C;
+  --clr-green-050:#E9F6EF;
+  --clr-red:#CE3B2E;              /* زر الحذف */
+  --clr-red-dark:#A92D23;
+  --clr-red-050:#FBEDEB;
+  --clr-female:#B84A8C;
+  --clr-amber:#F5B942;
+  --clr-bg:#F4F6FA;
+  --clr-surface:#FFFFFF;
+  --clr-border:#D9E0EA;
+  --clr-border-strong:#C3CEDC;
+  --clr-text:#22303F;
+  --clr-text-weak:#67788C;
+  --clr-edge:#9AA9BC;
+
+  --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+  --shadow-sm:0 1px 2px rgba(13,59,102,.08);
+  --shadow-md:0 6px 18px rgba(13,59,102,.16);
+
+  --panel-right-w:280px;          /* عرض اللوحة اليمنى الافتراضي */
+  --panel-left-w:320px;           /* عرض اللوحة اليسرى الافتراضي */
+
+  --font-main:'Cairo','Noto Kufi Arabic','Segoe UI',Tahoma,sans-serif;
+}
+
+/* تمهيد للوضع الليلي (المرحلة 5) — يُفعَّل لاحقًا عبر data-theme="dark"
+[data-theme="dark"]{
+  --clr-bg:#10161F; --clr-surface:#1A222E; --clr-border:#2A3646;
+  --clr-text:#E6EDF5; --clr-text-weak:#93A2B5;
+}
+*/
+
+/* =====================================================================
+   2) إعادة الضبط العامة (Reset)
+===================================================================== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-main);
+  font-size:12px;
+  color:var(--clr-text);
+  background:var(--clr-bg);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input{font-family:inherit}
+.hidden{display:none !important}
+
+/* أشرطة تمرير رفيعة */
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--clr-border-strong);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:var(--clr-text-weak)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* =====================================================================
+   3) النافذة الرئيسية (mainWindow)
+===================================================================== */
+#mainWindow{
+  display:flex;flex-direction:column;
+  height:100vh;
+  min-width:1366px;               /* الحد الأدنى لنافذة Electron لاحقًا */
+  min-height:620px;
+}
+
+/* =====================================================================
+   4) شريط القوائم (Menu Bar)
+===================================================================== */
+.menu-bar{
+  display:flex;align-items:stretch;flex:0 0 auto;
+  background:linear-gradient(180deg,var(--clr-primary-light),var(--clr-primary));
+  color:#fff;padding:0 10px;z-index:50;box-shadow:var(--shadow-sm);
+}
+.app-brand{display:flex;align-items:center;gap:7px;padding:0 12px;font-weight:800;font-size:12.5px;white-space:nowrap}
+.app-brand svg{width:18px;height:18px;fill:none;stroke:#8FD3A6;stroke-width:2;stroke-linecap:round}
+.menu-root{position:relative;display:flex}
+.menu-btn{padding:9px 13px;font-size:12px;font-weight:700;color:#E3EDF7;border-radius:6px}
+.menu-root:hover .menu-btn,.menu-root.open .menu-btn{background:rgba(255,255,255,.14);color:#fff}
+.menu-dropdown{
+  position:absolute;top:calc(100% + 2px);inset-inline-start:0;
+  min-width:250px;background:var(--clr-surface);
+  border:1px solid var(--clr-border);border-radius:var(--radius-md);
+  box-shadow:var(--shadow-md);padding:6px;display:none;z-index:1000;
+}
+.menu-root.open .menu-dropdown{display:block;animation:menuIn .13s ease-out}
+@keyframes menuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.menu-action{
+  display:flex;width:100%;justify-content:space-between;align-items:center;gap:24px;
+  padding:7px 12px;border-radius:6px;font-size:12px;font-weight:600;
+  color:var(--clr-text);text-align:start;
+}
+.menu-action:hover{background:var(--clr-primary-050);color:var(--clr-primary)}
+.menu-action .shortcut{font-size:10px;color:var(--clr-text-weak);font-weight:700}
+.menu-sep{height:1px;background:var(--clr-border);margin:5px 8px}
+
+/* =====================================================================
+   5) شريط الأدوات الرئيسي (toolbarMain)
+===================================================================== */
+.toolbar{
+  display:flex;align-items:stretch;gap:2px;flex:0 0 auto;flex-wrap:wrap;
+  background:var(--clr-surface);border-bottom:1px solid var(--clr-border);padding:6px 10px;
+}
+.tb-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-width:68px;padding:7px 9px;border-radius:var(--radius-md);
+  font-size:11px;font-weight:700;color:var(--clr-text);border:1px solid transparent;
+}
+.tb-btn svg{width:20px;height:20px;fill:none;stroke:var(--clr-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tb-btn:hover{background:var(--clr-primary-050);border-color:var(--clr-primary-100)}
+.tb-btn:active{transform:translateY(1px)}
+.tb-btn.tb-save{color:var(--clr-green-dark)}
+.tb-btn.tb-save svg{stroke:var(--clr-green)}
+.tb-btn.tb-save:hover{background:var(--clr-green-050);border-color:#BFE5CE}
+.tb-btn.tb-danger{color:var(--clr-red-dark)}
+.tb-btn.tb-danger svg{stroke:var(--clr-red)}
+.tb-btn.tb-danger:hover{background:var(--clr-red-050);border-color:#F0C4BF}
+.tb-sep{width:1px;background:var(--clr-border);margin:6px 6px}
+
+/* =====================================================================
+   6) التقسيم الثلاثي الرئيسي (splitterMain) — يحاكي QSplitter
+===================================================================== */
+#splitterMain{
+  flex:1;min-height:0;display:grid;
+  grid-template-columns:var(--panel-right-w) 6px minmax(420px,1fr) 6px var(--panel-left-w);
+  column-gap:6px;padding:8px;
+}
+.splitter{background:var(--clr-border);border-radius:3px;cursor:col-resize;transition:background .15s}
+.splitter:hover{background:var(--clr-blue)}
+body.is-resizing{user-select:none}
+body.is-resizing *{cursor:col-resize !important}
+body.is-resizing .tree-canvas{pointer-events:none}
+
+.panel{
+  background:var(--clr-surface);border:1px solid var(--clr-border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+  min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;
+}
+.panel-title{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;font-size:11.5px;font-weight:800;color:var(--clr-primary);
+  background:var(--clr-primary-050);border-bottom:1px solid var(--clr-border);
+}
+.panel-title.top{border-top:none}
+.panel-title:not(.top){border-top:1px solid var(--clr-border)}
+.panel-scroll{flex:1;min-height:0;overflow-y:auto}
+
+/* =====================================================================
+   7) اللوحة اليمنى: البحث + التصنيفات + شجرة العائلات + قائمة الأشخاص
+===================================================================== */
+.search-area{padding:10px}
+.search-box{
+  display:flex;align-items:center;gap:6px;background:#fff;
+  border:1.5px solid var(--clr-border-strong);border-radius:var(--radius-md);padding:0 10px;
+  transition:border-color .15s;
+}
+.search-box:focus-within{border-color:var(--clr-blue);box-shadow:0 0 0 3px rgba(29,111,209,.12)}
+.search-box svg{width:15px;height:15px;fill:none;stroke:var(--clr-text-weak);stroke-width:2;stroke-linecap:round;flex:0 0 auto}
+.search-box input{border:none;outline:none;flex:1;padding:8px 0;font-size:12px;background:transparent;min-width:0}
+
+.category-list{display:flex;flex-direction:column;padding:6px}
+.category-btn{
+  display:flex;justify-content:space-between;align-items:center;width:100%;
+  padding:7px 10px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;color:var(--clr-text);
+}
+.category-btn:hover{background:var(--clr-primary-050)}
+.category-btn.active{background:var(--clr-primary);color:#fff}
+.count-badge{font-size:10.5px;font-weight:800;background:rgba(13,59,102,.08);color:var(--clr-primary);border-radius:999px;padding:1px 9px}
+.category-btn.active .count-badge{background:rgba(255,255,255,.22);color:#fff}
+
+.family-item{border-bottom:1px dashed var(--clr-border)}
+.family-head{display:flex;align-items:center;gap:6px;width:100%;padding:8px 10px;text-align:start}
+.family-head:hover{background:var(--clr-primary-050)}
+.family-head .chev{width:13px;height:13px;fill:none;stroke:var(--clr-primary);stroke-width:2.5;stroke-linecap:round;transition:transform .18s;flex:0 0 auto}
+.family-item.collapsed .chev{transform:rotate(-90deg)}
+.family-item.collapsed .family-children{display:none}
+.family-tt{display:flex;flex-direction:column;min-width:0}
+.family-name{font-size:12px;font-weight:800;color:var(--clr-primary)}
+.family-sub{font-size:10px;color:var(--clr-text-weak);font-weight:600}
+.family-children{padding:2px 8px 8px 8px;display:flex;flex-direction:column;gap:2px}
+
+.person-row{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:6px 8px;border-radius:var(--radius-sm);text-align:start;
+  border-inline-start:3px solid transparent;
+}
+.person-row:hover{background:var(--clr-primary-050)}
+.person-row.active{background:var(--clr-primary-050);border-inline-start-color:var(--clr-blue)}
+.person-avatar{
+  width:28px;height:28px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:12px;color:#fff;
+}
+.person-avatar.male{background:var(--clr-blue)}
+.person-avatar.female{background:var(--clr-female)}
+.person-meta{display:flex;flex-direction:column;min-width:0}
+.person-name{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.person-sub{font-size:10px;color:var(--clr-text-weak);font-weight:600}
+.list-empty{padding:14px;text-align:center;color:var(--clr-text-weak);font-weight:700;font-size:11px}
+
+/* =====================================================================
+   8) اللوحة الوسطى: منطقة رسم الشجرة + شريط أدوات ثانوي
+===================================================================== */
+.tree-toolbar{
+  display:flex;align-items:center;gap:4px;flex:0 0 auto;flex-wrap:wrap;
+  padding:6px 10px;border-bottom:1px solid var(--clr-border);background:#FBFCFE;
+}
+.tree-tool{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:var(--radius-sm);
+  font-size:11px;font-weight:700;color:var(--clr-text);border:1px solid transparent;
+}
+.tree-tool svg{width:16px;height:16px;fill:none;stroke:var(--clr-primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tree-tool:hover{background:var(--clr-primary-050);border-color:var(--clr-primary-100)}
+#zoomLevelLabel{min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ملاحظة: تمت محاذاة رسالة "لا توجد بيانات" فوق لوحة الرسم عبر CSS Grid
+   (grid-area) بدلًا من position:absolute التزامًا بمتطلبات التخطيط */
+.tree-canvas{
+  flex:1;min-height:0;display:grid;cursor:grab;
+  background-color:#FAFBFE;
+  background-image:linear-gradient(#EBF0F7 1px,transparent 1px),
+                   linear-gradient(90deg,#EBF0F7 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.tree-canvas.panning{cursor:grabbing}
+.tree-canvas > *{grid-area:1/1}
+.tree-svg{width:100%;height:100%;display:block;touch-action:none}
+.tree-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  color:var(--clr-text-weak);pointer-events:none;font-size:14px;font-weight:800;
+}
+.tree-empty svg{width:54px;height:54px;fill:none;stroke:var(--clr-border-strong);stroke-width:1.5;stroke-linecap:round}
+
+/* عناصر الرسم داخل SVG */
+.edge{stroke:var(--clr-edge);stroke-width:1.5;fill:none}
+.edge.spouse-edge{stroke:#B48EC9;stroke-width:2}
+.person-node{cursor:pointer}
+.person-node .node-box{fill:#fff;stroke:#B9C6D6;stroke-width:1.5;transition:stroke .12s}
+.person-node:hover .node-box{stroke:var(--clr-primary)}
+.person-node.selected .node-box{stroke:var(--clr-blue);stroke-width:2.5}
+.person-node.deceased .node-box{fill:#F5F6F8}
+.node-accent.male{fill:var(--clr-blue)}
+.node-accent.female{fill:var(--clr-female)}
+.node-name{font-family:var(--font-main);font-size:11.5px;font-weight:700;fill:var(--clr-text)}
+.node-years{font-family:var(--font-main);font-size:9.5px;font-weight:600;fill:var(--clr-text-weak)}
+
+/* =====================================================================
+   9) اللوحة اليسرى: بطاقة معلومات الشخص (groupPersonInfo)
+===================================================================== */
+.card-body{flex:1;min-height:0;overflow-y:auto;padding:14px 14px 8px}
+.card-photo{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:10px}
+.big-avatar{
+  width:72px;height:72px;border-radius:50%;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;font-weight:800;box-shadow:var(--shadow-md);
+}
+.big-avatar.male{background:linear-gradient(135deg,var(--clr-blue),var(--clr-primary))}
+.big-avatar.female{background:linear-gradient(135deg,var(--clr-female),#8E3A73)}
+#personFullName{font-size:14.5px;font-weight:800;color:var(--clr-primary);text-align:center}
+.badge-row{display:flex;gap:6px;justify-content:center}
+.gender-badge{font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 12px}
+.gender-badge.male{background:var(--clr-primary-050);color:var(--clr-primary)}
+.gender-badge.female{background:#F7EAF2;color:var(--clr-female)}
+.deceased-badge{background:#EEF1F4;color:var(--clr-text-weak)}
+.info-grid{display:flex;flex-direction:column}
+.info-row{display:flex;gap:8px;padding:6px 2px;border-bottom:1px dashed var(--clr-border);font-size:11.5px}
+.info-row dt{flex:0 0 88px;color:var(--clr-text-weak);font-weight:700}
+.info-row dd{flex:1;font-weight:600;word-break:break-word;min-width:0}
+.info-row dd.alive{color:var(--clr-green-dark);font-weight:800}
+.notes-block{
+  margin-top:10px;background:#FDF9EC;border:1px solid #F0E4BE;border-radius:var(--radius-md);
+  padding:8px 10px;font-size:11px;color:#6B5B1E;line-height:1.8;
+}
+.card-actions{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:0 0 auto;
+  padding:12px;border-top:1px solid var(--clr-border);background:#FBFCFE;
+}
+.btn{
+  padding:8px 10px;border-radius:var(--radius-md);font-size:11.5px;font-weight:800;
+  border:1px solid transparent;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-primary{background:var(--clr-blue);color:#fff}
+.btn-primary:hover{background:var(--clr-blue-dark)}
+.btn-outline{background:#fff;border-color:var(--clr-border-strong);color:var(--clr-text)}
+.btn-outline:hover{border-color:var(--clr-blue);color:var(--clr-blue)}
+.btn-danger{background:var(--clr-red);color:#fff;grid-column:1/-1}
+.btn-danger:hover{background:var(--clr-red-dark)}
+
+/* =====================================================================
+   10) شريط الحالة السفلي (statusBar)
+===================================================================== */
+#statusBar{
+  flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:var(--clr-primary);color:#D7E5F3;padding:6px 14px;font-size:11px;flex-wrap:wrap;
+}
+.status-group{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.status-item{display:inline-flex;align-items:center;gap:5px;font-weight:600}
+.status-item svg{width:13px;height:13px;fill:none;stroke:#9FC2E4;stroke-width:2;stroke-linecap:round}
+.status-item b{color:#fff;font-weight:800}
+.db-dot{width:8px;height:8px;border-radius:50%;background:var(--clr-amber);box-shadow:0 0 0 3px rgba(245,185,66,.22)}
+
+/* =====================================================================
+   11) التنبيهات (Toasts) + نوافذ الحوار (Dialogs)
+   ---------------------------------------------------------------------
+   ملاحظة: الاستخدام الوحيد لـ position:fixed هنا هو طبقة التنبيهات،
+   وهي الحالة المستثناة صراحةً في متطلبات التخطيط.
+===================================================================== */
+#toastContainer{
+  position:fixed;bottom:46px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;gap:8px;z-index:4000;max-width:min(500px,90vw);
+}
+.toast{
+  background:#14273E;color:#fff;padding:10px 16px;border-radius:var(--radius-md);
+  box-shadow:var(--shadow-md);font-size:12px;font-weight:700;line-height:1.6;
+  border-inline-start:4px solid var(--clr-blue);animation:toastIn .25s ease;
+}
+.toast.success{border-inline-start-color:var(--clr-green)}
+.toast.warn{border-inline-start-color:var(--clr-amber)}
+.toast.error{border-inline-start-color:var(--clr-red)}
+.toast.hide{opacity:0;transform:translateY(6px);transition:.3s}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+dialog{border:none;border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:0;width:min(560px,92vw);color:var(--clr-text)}
+dialog::backdrop{background:rgba(8,32,58,.5)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;background:var(--clr-primary);color:#fff;padding:12px 16px}
+.dlg-head h3{font-size:13.5px;font-weight:800}
+.dlg-close{color:#fff;font-size:15px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.dlg-close:hover{background:rgba(255,255,255,.16)}
+.dlg-body{padding:16px;max-height:68vh;overflow-y:auto}
+.dlg-foot{display:flex;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--clr-border);background:#FBFCFE}
+.about-center{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.about-center svg{width:56px;height:56px;fill:none;stroke:var(--clr-green);stroke-width:2;stroke-linecap:round}
+.about-center h2{font-size:16px;color:var(--clr-primary)}
+.about-center p{font-size:12px;color:var(--clr-text-weak);line-height:1.9;max-width:420px}
+.version-chip{background:var(--clr-primary-050);color:var(--clr-primary);font-weight:800;font-size:11px;border-radius:999px;padding:3px 14px}
+.detail-table{width:100%;border-collapse:collapse;font-size:11.5px}
+.detail-table td{padding:6px 8px;border-bottom:1px dashed var(--clr-border);font-weight:600}
+.detail-table td:first-child{color:var(--clr-text-weak);font-weight:800;width:132px}
+
+/* =====================================================================
+   12) استجابة التخطيط (Responsive) — إعادة ترتيب تلقائية عند التغيير
+===================================================================== */
+@media (max-width:1520px){
+  :root{--panel-right-w:255px;--panel-left-w:300px}
+}
+</style>
+</head>
+
+<body>
+<div id="mainWindow">
+
+  <!-- ======================= شريط القوائم ======================= -->
+  <nav id="menuBar" class="menu-bar" aria-label="القائمة الرئيسية">
+    <span class="app-brand">
+      <svg viewBox="0 0 24 24"><path d="M12 22V12M12 12c-3 0-6-2-6-6 3 0 6 2 6 6zm0 0c3 0 6-2 6-6-3 0-6 2-6 6z"/></svg>
+      شجرة العائلة
+    </span>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuFile">ملف</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="newProject" data-label="مشروع جديد"><span>مشروع جديد</span><span class="shortcut" dir="ltr">Ctrl+N</span></button>
+        <button type="button" class="menu-action" data-action="openProject" data-label="فتح مشروع"><span>فتح مشروع</span><span class="shortcut" dir="ltr">Ctrl+O</span></button>
+        <button type="button" class="menu-action" data-action="save" data-label="حفظ"><span>حفظ</span><span class="shortcut" dir="ltr">Ctrl+S</span></button>
+        <button type="button" class="menu-action" data-action="saveAs" data-label="حفظ باسم"><span>حفظ باسم</span><span class="shortcut" dir="ltr">Ctrl+Shift+S</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="exportPdf" data-label="تصدير PDF"><span>تصدير PDF</span></button>
+        <button type="button" class="menu-action" data-action="exportExcel" data-label="تصدير Excel"><span>تصدير Excel</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="print" data-label="طباعة"><span>طباعة</span><span class="shortcut" dir="ltr">Ctrl+P</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="exit" data-label="خروج"><span>خروج</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuEdit">تحرير</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="undo" data-label="تراجع"><span>تراجع</span><span class="shortcut" dir="ltr">Ctrl+Z</span></button>
+        <button type="button" class="menu-action" data-action="redo" data-label="إعادة"><span>إعادة</span><span class="shortcut" dir="ltr">Ctrl+Y</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="cut" data-label="قص"><span>قص</span><span class="shortcut" dir="ltr">Ctrl+X</span></button>
+        <button type="button" class="menu-action" data-action="copy" data-label="نسخ"><span>نسخ</span><span class="shortcut" dir="ltr">Ctrl+C</span></button>
+        <button type="button" class="menu-action" data-action="paste" data-label="لصق"><span>لصق</span><span class="shortcut" dir="ltr">Ctrl+V</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="deletePerson" data-label="حذف"><span>حذف</span><span class="shortcut">Del</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuView">عرض</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="zoomIn" data-label="تكبير"><span>تكبير</span><span class="shortcut" dir="ltr">Ctrl++</span></button>
+        <button type="button" class="menu-action" data-action="zoomOut" data-label="تصغير"><span>تصغير</span><span class="shortcut" dir="ltr">Ctrl+-</span></button>
+        <button type="button" class="menu-action" data-action="zoomReset" data-label="الحجم الأصلي"><span>الحجم الأصلي (100%)</span><span class="shortcut" dir="ltr">Ctrl+0</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="recenter" data-label="إعادة التوسيط"><span>إعادة التوسيط</span></button>
+        <button type="button" class="menu-action" data-action="autoLayout" data-label="ترتيب تلقائي"><span>ترتيب تلقائي</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="fullscreen" data-label="ملء الشاشة"><span>ملء الشاشة</span><span class="shortcut">F11</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="darkMode" data-label="الوضع الليلي"><span>الوضع الليلي</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuPersons">أشخاص</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="addPerson" data-label="إضافة شخص"><span>إضافة شخص</span></button>
+        <button type="button" class="menu-action" data-action="editPerson" data-label="تعديل شخص"><span>تعديل شخص</span></button>
+        <button type="button" class="menu-action" data-action="deletePerson" data-label="حذف شخص"><span>حذف شخص</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="focusSearch" data-label="بحث عن شخص"><span>بحث عن شخص</span><span class="shortcut" dir="ltr">Ctrl+F</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="showDetails" data-label="عرض التفاصيل"><span>عرض التفاصيل</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuFamily">عائلة</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="newFamily" data-label="إضافة عائلة"><span>إضافة عائلة</span></button>
+        <button type="button" class="menu-action" data-action="addSpouse" data-label="إضافة زوج/زوجة"><span>إضافة زوج/زوجة</span></button>
+        <button type="button" class="menu-action" data-action="addSon" data-label="إضافة ابن/ابنة"><span>إضافة ابن/ابنة</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="recenter" data-label="عرض الشجرة العائلية"><span>عرض الشجرة العائلية</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuReports">تقارير</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="reportTree" data-label="تقرير شجرة العائلة"><span>تقرير شجرة العائلة</span></button>
+        <button type="button" class="menu-action" data-action="reportPersons" data-label="تقرير الأشخاص"><span>تقرير الأشخاص</span></button>
+        <button type="button" class="menu-action" data-action="reportStats" data-label="تقرير إحصائيات"><span>تقرير إحصائيات</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="exportPdf" data-label="تصدير PDF"><span>تصدير PDF</span></button>
+        <button type="button" class="menu-action" data-action="exportExcel" data-label="تصدير Excel"><span>تصدير Excel</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuSettings">إعدادات</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="appSettings" data-label="إعدادات التطبيق"><span>إعدادات التطبيق</span></button>
+        <button type="button" class="menu-action" data-action="dbSettings" data-label="إعدادات قاعدة البيانات"><span>إعدادات قاعدة البيانات</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="backup" data-label="نسخة احتياطية"><span>إنشاء نسخة احتياطية</span></button>
+        <button type="button" class="menu-action" data-action="restore" data-label="استعادة"><span>استعادة نسخة احتياطية</span></button>
+      </div>
+    </div>
+
+    <div class="menu-root">
+      <button type="button" class="menu-btn" id="menuHelp">مساعدة</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" data-action="helpContent" data-label="المحتويات"><span>المحتويات</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" data-action="about" data-label="حول التطبيق"><span>حول التطبيق</span></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ======================= شريط الأدوات الرئيسي ======================= -->
+  <div id="toolbarMain" class="toolbar" role="toolbar" aria-label="شريط الأدوات الرئيسي">
+    <button type="button" id="btnNewProject" class="tb-btn" data-action="newProject" data-label="مشروع جديد" title="إنشاء مشروع جديد">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <span>مشروع جديد</span>
+    </button>
+    <button type="button" id="btnOpenProject" class="tb-btn" data-action="openProject" data-label="فتح" title="فتح مشروع محفوظ">
+      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span>فتح</span>
+    </button>
+    <button type="button" id="btnSave" class="tb-btn tb-save" data-action="save" data-label="حفظ" title="حفظ المشروع">
+      <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <span>حفظ</span>
+    </button>
+    <button type="button" id="btnPrint" class="tb-btn" data-action="print" data-label="طباعة" title="طباعة شجرة العائلة">
+      <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span>طباعة</span>
+    </button>
+    <span class="tb-sep"></span>
+    <button type="button" id="btnAddPerson" class="tb-btn" data-action="addPerson" data-label="إضافة شخص" title="إضافة شخص جديد">
+      <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+      <span>إضافة شخص</span>
+    </button>
+    <button type="button" id="btnEditPerson" class="tb-btn" data-action="editPerson" data-label="تعديل" title="تعديل بيانات الشخص المحدد">
+      <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span>تعديل</span>
+    </button>
+    <button type="button" id="btnDeletePerson" class="tb-btn tb-danger" data-action="deletePerson" data-label="حذف" title="حذف الشخص المحدد">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <span>حذف</span>
+    </button>
+    <span class="tb-sep"></span>
+    <button type="button" id="btnAddSon" class="tb-btn" data-action="addSon" data-label="إضافة ابن" title="إضافة ابن/ابنة للشخص المحدد">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="3.2"/><path d="M14.8 21v-1.4a3.4 3.4 0 0 0-3.4-3.4H6.2a3.4 3.4 0 0 0-3.4 3.4V21"/><circle cx="18.2" cy="12.2" r="2.4"/><path d="M22.4 21v-.8a2.7 2.7 0 0 0-2.7-2.7h-2.2"/><line x1="18.2" y1="17.5" x2="18.2" y2="21.5"/></svg>
+      <span>إضافة ابن</span>
+    </button>
+    <button type="button" id="btnAddSpouse" class="tb-btn" data-action="addSpouse" data-label="إضافة زوج" title="إضافة زوج/زوجة للشخص المحدد">
+      <svg viewBox="0 0 24 24"><path d="M15 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8" cy="7" r="4"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/><path d="M15 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>إضافة زوج</span>
+    </button>
+    <span class="tb-sep"></span>
+    <button type="button" id="btnSearch" class="tb-btn" data-action="focusSearch" data-label="بحث" title="الانتقال إلى مربع البحث">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      <span>بحث</span>
+    </button>
+    <button type="button" id="btnReports" class="tb-btn" data-action="reports" data-label="التقارير" title="عرض التقارير">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+      <span>التقارير</span>
+    </button>
+  </div>
+
+  <!-- ======================= التقسيم الثلاثي الرئيسي ======================= -->
+  <main id="splitterMain">
+
+    <!-- ---------- اللوحة اليمنى: البحث والتصنيفات والقوائم ---------- -->
+    <aside id="panelRight" class="panel" aria-label="لوحة الاستعراض">
+      <div class="search-area">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="searchInput" type="text" placeholder="بحث عن شخص…" autocomplete="off">
+        </div>
+      </div>
+      <div class="panel-title top">التصنيفات</div>
+      <div id="categoryList" class="category-list"></div>
+      <div class="panel-title">شجرة العائلات</div>
+      <div id="treeViewFamilies" class="panel-scroll"></div>
+      <div class="panel-title">قائمة الأشخاص <span id="personListCount" class="count-badge">0</span></div>
+      <div id="personList" class="panel-scroll" style="flex:1"></div>
+    </aside>
+
+    <div id="splitterRight" class="splitter" title="اسحب لتغيير عرض اللوحة — نقرة مزدوجة لإعادة الضبط"></div>
+
+    <!-- ---------- اللوحة الوسطى: منطقة رسم الشجرة ---------- -->
+    <section id="panelCenter" class="panel" aria-label="لوحة رسم الشجرة">
+      <div id="toolbarTree" class="tree-toolbar" role="toolbar" aria-label="أدوات الرسم">
+        <button type="button" id="btnZoomIn" class="tree-tool" data-action="zoomIn" data-label="تكبير" title="تكبير">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button type="button" id="btnZoomOut" class="tree-tool" data-action="zoomOut" data-label="تصغير" title="تصغير">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button type="button" id="btnZoomReset" class="tree-tool" data-action="zoomReset" data-label="الحجم الأصلي" title="الحجم الأصلي (100%)">
+          <span id="zoomLevelLabel">100%</span>
+        </button>
+        <button type="button" id="btnRecenter" class="tree-tool" data-action="recenter" data-label="إعادة التوسيط" title="إعادة التوسيط">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+        </button>
+        <span class="tb-sep"></span>
+        <button type="button" id="btnAutoLayout" class="tree-tool" data-action="autoLayout" data-label="ترتيب تلقائي" title="ترتيب تلقائي">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+          <span>ترتيب تلقائي</span>
+        </button>
+        <button type="button" id="btnFullscreen" class="tree-tool" data-action="fullscreen" data-label="ملء الشاشة" title="ملء الشاشة">
+          <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/></svg>
+          <span>ملء الشاشة</span>
+        </button>
+      </div>
+
+      <div id="graphicsViewTree" class="tree-canvas">
+        <svg id="treeSvg" class="tree-svg" role="img" aria-label="منطقة رسم شجرة العائلة">
+          <rect id="treeBg" width="100%" height="100%" fill="transparent"></rect>
+          <g id="treeViewport"></g>
+        </svg>
+        <!-- الرسالة الافتراضية عند عدم وجود بيانات (تظهر تلقائيًا عندما تكون القائمة فارغة) -->
+        <div id="treeEmptyMessage" class="tree-empty hidden">
+          <svg viewBox="0 0 24 24"><path d="M12 22V12M12 12c-3 0-6-2-6-6 3 0 6 2 6 6zm0 0c3 0 6-2 6-6-3 0-6 2-6 6z"/></svg>
+          لا توجد بيانات لعرضها
+        </div>
+      </div>
+    </section>
+
+    <div id="splitterLeft" class="splitter" title="اسحب لتغيير عرض اللوحة — نقرة مزدوجة لإعادة الضبط"></div>
+
+    <!-- ---------- اللوحة اليسرى: بطاقة معلومات الشخص ---------- -->
+    <aside id="panelLeft" class="panel" aria-label="لوحة التفاصيل">
+      <section id="groupPersonInfo" class="panel" style="border:none;border-radius:0;box-shadow:none;flex:1">
+        <div class="panel-title top">معلومات الشخص</div>
+        <div class="card-body">
+          <div class="card-photo">
+            <div id="personAvatar" class="big-avatar male">؟</div>
+            <h3 id="personFullName">لم يتم اختيار شخص</h3>
+            <div class="badge-row">
+              <span id="personGenderBadge" class="gender-badge male hidden"></span>
+              <span id="personDeceasedBadge" class="gender-badge deceased-badge hidden">متوفى</span>
+            </div>
+          </div>
+          <dl id="personInfoGrid" class="info-grid"></dl>
+          <div id="personNotesBlock" class="notes-block hidden"></div>
+        </div>
+        <footer class="card-actions">
+          <button type="button" id="btnCardAddSon" class="btn btn-primary" data-action="addSon" data-label="إضافة ابن" title="إضافة ابن/ابنة">إضافة ابن</button>
+          <button type="button" id="btnCardAddSpouse" class="btn btn-primary" data-action="addSpouse" data-label="إضافة زوج" title="إضافة زوج/زوجة">إضافة زوج/زوجة</button>
+          <button type="button" id="btnCardEdit" class="btn btn-outline" data-action="editPerson" data-label="تعديل" title="تعديل البيانات">تعديل</button>
+          <button type="button" id="btnCardDetails" class="btn btn-outline" data-action="showDetails" data-label="عرض التفاصيل" title="عرض كل التفاصيل">عرض التفاصيل</button>
+          <button type="button" id="btnCardDelete" class="btn btn-danger" data-action="deletePerson" data-label="حذف" title="حذف الشخص">حذف</button>
+        </footer>
+      </section>
+    </aside>
+  </main>
+
+  <!-- ======================= شريط الحالة ======================= -->
+  <footer id="statusBar">
+    <div class="status-group">
+      <span class="status-item">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        عدد الأشخاص: <b id="statPersons">0</b>
+      </span>
+      <span class="status-item">
+        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>
+        عدد العائلات: <b id="statFamilies">0</b>
+      </span>
+      <span class="status-item">آخر حفظ: <b id="statLastSave">لم يتم الحفظ بعد</b></span>
+    </div>
+    <div class="status-group">
+      <span class="status-item"><span class="db-dot"></span> قاعدة البيانات: <b id="statDb">غير متصلة — بيانات تجريبية</b></span>
+      <span class="status-item">الإصدار <b id="statVersion">1.0</b></span>
+    </div>
+  </footer>
+</div>
+
+<!-- طبقة التنبيهات (Toasts) -->
+<div id="toastContainer" role="status" aria-live="polite"></div>
+
+<!-- نافذة: حول التطبيق -->
+<dialog id="aboutDialog">
+  <div class="dlg-head"><h3>حول التطبيق</h3><button type="button" class="dlg-close" data-close-dialog>✕</button></div>
+  <div class="dlg-body">
+    <div class="about-center">
+      <svg viewBox="0 0 24 24"><path d="M12 22V12M12 12c-3 0-6-2-6-6 3 0 6 2 6 6zm0 0c3 0 6-2 6-6-3 0-6 2-6 6z"/></svg>
+      <h2>برنامج شجرة العائلة الاحترافي</h2>
+      <span class="version-chip">الإصدار 1.0 — المرحلة الأولى</span>
+      <p>نموذج أولي لواجهة المستخدم الرئيسية. البيانات المعروضة تجريبية لأغراض العرض فقط،
+      والتطبيق مُهيأ للربط لاحقًا بقاعدة بيانات Realm المحلية وتغليفه كتطبيق سطح مكتب عبر إطار Electron.</p>
+    </div>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn btn-primary" data-close-dialog>إغلاق</button></div>
+</dialog>
+
+<!-- نافذة: تفاصيل الشخص -->
+<dialog id="personDetailsDialog">
+  <div class="dlg-head"><h3 id="detailsTitle">تفاصيل الشخص</h3><button type="button" class="dlg-close" data-close-dialog>✕</button></div>
+  <div class="dlg-body"><table class="detail-table"><tbody id="detailsBody"></tbody></table></div>
+  <div class="dlg-foot"><button type="button" class="btn btn-primary" data-close-dialog>إغلاق</button></div>
+</dialog>
+
+<script>
+'use strict';
+/* =====================================================================
+   برنامج شجرة العائلة الاحترافي — المرحلة الأولى
+   ---------------------------------------------------------------------
+   البنية الداخلية (وحدات منطقية منفصلة داخل ملف واحد، جاهزة للنقل
+   لاحقًا إلى ملفات Electron: main.js / preload.js / renderer):
+     1) MOCK_DATA      : البيانات الوهمية (يمكن إزالتها بخطوة واحدة)
+     2) DataService    : طبقة الوصول للبيانات (تحاكي واجهة Realm)
+     3) RendererState  : حالة العرض (التحديد، التكبير، التصنيف…)
+     4) TreeRenderer   : رسم الشجرة داخل SVG
+     5) UIController   : التحكم في عناصر الواجهة وربط الأحداث
+     6) initApp()      : نقطة الدخول الموحدة (تُستخدم كما هي في Electron)
+===================================================================== */
+
+/* =====================================================================
+   1) MOCK_DATA — البيانات الوهمية (Mock Data)
+   ---------------------------------------------------------------------
+   ⚠ هذا القسم بالكامل بيانات تجريبية للعرض فقط (يمكن إزالته بخطوة
+   واحدة لاحقًا). سيُستبدل ببيانات حقيقية من Realm Database.
+   ملاحظة: لا يستخدم هذا النموذج localStorage أو أي تخزين متصفح؛
+   التخزين المستقبلي سيكون حصريًا عبر Realm.
+===================================================================== */
+const MOCK_DATA = Object.freeze({
+  project: Object.freeze({ name: 'عائلة الفيصل — شجرة العائلة', version: '1.0' }),
+
+  persons: [
+    { id:'p1',  fullName:'فيصل بن عبدالله الفيصل',   gender:'male',   fatherId:null, motherId:null, spouseId:'p2',  childrenIds:['p3','p5','p7'],
+      birthDate:'1932-05-04', birthPlace:'الرياض', deathDate:'2005-11-19',
+      occupation:'تاجر', phone:'0501234567', email:'faisal@example.com',
+      address:'الرياض — حي المربع', notes:'مؤسس العائلة. (بيانات وهمية لأغراض العرض فقط.)', photoPath:'' },
+
+    { id:'p2',  fullName:'فاطمة بنت محمد العمري',    gender:'female', fatherId:null, motherId:null, spouseId:'p1',  childrenIds:['p3','p5','p7'],
+      birthDate:'1940-02-17', birthPlace:'عنيزة', deathDate:null,
+      occupation:'ربة منزل', phone:'0507654321', email:'',
+      address:'الرياض — حي المربع', notes:'', photoPath:'' },
+
+    { id:'p3',  fullName:'خالد بن فيصل الفيصل',      gender:'male',   fatherId:'p1', motherId:'p2', spouseId:'p4',  childrenIds:['p9','p10','p11'],
+      birthDate:'1960-08-21', birthPlace:'الرياض', deathDate:null,
+      occupation:'مدير أعمال', phone:'0553334444', email:'khaled@example.com',
+      address:'الرياض — حي النرجس', notes:'', photoPath:'' },
+
+    { id:'p4',  fullName:'نورة بنت سعد القحطاني',    gender:'female', fatherId:null, motherId:null, spouseId:'p3',  childrenIds:['p9','p10','p11'],
+      birthDate:'1965-03-09', birthPlace:'أبها', deathDate:null,
+      occupation:'معلمة متقاعدة', phone:'', email:'',
+      address:'الرياض — حي النرجس', notes:'', photoPath:'' },
+
+    { id:'p5',  fullName:'أحمد بن فيصل الفيصل',      gender:'male',   fatherId:'p1', motherId:'p2', spouseId:'p6',  childrenIds:['p12'],
+      birthDate:'1963-12-01', birthPlace:'الرياض', deathDate:null,
+      occupation:'مهندس مدني', phone:'0561112222', email:'ahmed@example.com',
+      address:'جدة — حي الروضة', notes:'', photoPath:'' },
+
+    { id:'p6',  fullName:'منى بنت علي الحربي',       gender:'female', fatherId:null, motherId:null, spouseId:'p5',  childrenIds:['p12'],
+      birthDate:'1968-07-15', birthPlace:'بريدة', deathDate:null,
+      occupation:'طبيبة', phone:'', email:'',
+      address:'جدة — حي الروضة', notes:'', photoPath:'' },
+
+    { id:'p7',  fullName:'حصة بنت فيصل الفيصل',      gender:'female', fatherId:'p1', motherId:'p2', spouseId:'p8',  childrenIds:[],
+      birthDate:'1966-10-30', birthPlace:'الرياض', deathDate:null,
+      occupation:'سيدة أعمال', phone:'0549998888', email:'',
+      address:'الدمام — حي الشاطئ', notes:'', photoPath:'' },
+
+    { id:'p8',  fullName:'سلطان بن إبراهيم الشهري',  gender:'male',   fatherId:null, motherId:null, spouseId:'p7',  childrenIds:[],
+      birthDate:'1961-01-25', birthPlace:'النماص', deathDate:null,
+      occupation:'ضابط متقاعد', phone:'', email:'',
+      address:'الدمام — حي الشاطئ', notes:'', photoPath:'' },
+
+    { id:'p9',  fullName:'عبدالله بن خالد الفيصل',   gender:'male',   fatherId:'p3', motherId:'p4', spouseId:null,  childrenIds:[],
+      birthDate:'1988-04-11', birthPlace:'الرياض', deathDate:null,
+      occupation:'مهندس برمجيات', phone:'0577776666', email:'abdullah@example.com',
+      address:'الرياض — حي الياسمين', notes:'', photoPath:'' },
+
+    { id:'p10', fullName:'سارة بنت خالد الفيصل',     gender:'female', fatherId:'p3', motherId:'p4', spouseId:null,  childrenIds:[],
+      birthDate:'1991-09-03', birthPlace:'الرياض', deathDate:null,
+      occupation:'طبيبة أسنان', phone:'', email:'sara@example.com',
+      address:'الرياض', notes:'', photoPath:'' },
+
+    { id:'p11', fullName:'ريم بنت خالد الفيصل',      gender:'female', fatherId:'p3', motherId:'p4', spouseId:null,  childrenIds:[],
+      birthDate:'1996-06-28', birthPlace:'الرياض', deathDate:null,
+      occupation:'طالبة جامعية', phone:'', email:'',
+      address:'الرياض', notes:'', photoPath:'' },
+
+    { id:'p12', fullName:'عمر بن أحمد الفيصل',       gender:'male',   fatherId:'p5', motherId:'p6', spouseId:null,  childrenIds:[],
+      birthDate:'1995-11-19', birthPlace:'جدة', deathDate:null,
+      occupation:'محاسب', phone:'0588885555', email:'',
+      address:'جدة', notes:'', photoPath:'' }
+  ],
+
+  families: [
+    { id:'f1', name:'عائلة الفيصل (العائلة الرئيسية)', husbandId:'p1', wifeId:'p2', childrenIds:['p3','p5','p7'] },
+    { id:'f2', name:'عائلة خالد بن فيصل',              husbandId:'p3', wifeId:'p4', childrenIds:['p9','p10','p11'] },
+    { id:'f3', name:'عائلة أحمد بن فيصل',              husbandId:'p5', wifeId:'p6', childrenIds:['p12'] },
+    { id:'f4', name:'عائلة حصة بنت فيصل',              husbandId:'p8', wifeId:'p7', childrenIds:[] }
+  ]
+});
+
+/* ---------------------------------------------------------------------
+   مسودة مخطط البيانات (Schema Draft) بأسلوب Realm — غير مفعّلة بعد،
+   وتُستخدم كمرجع للمرحلة الثالثة فقط.
+------------------------------------------------------------------------
+const PersonSchema = {
+  name: 'Person',
+  primaryKey: 'id',
+  properties: {
+    id:         'string',
+    fullName:   'string',
+    gender:     'string',        // 'male' | 'female'
+    fatherId:   'string?',
+    motherId:   'string?',
+    spouseId:   'string?',
+    childrenIds:'string[]',
+    birthDate:  'string?',
+    birthPlace: 'string?',
+    deathDate:  'string?',
+    occupation: 'string?',
+    phone:      'string?',
+    email:      'string?',
+    address:    'string?',
+    notes:      'string?',
+    photoPath:  'string?'
+  }
+};
+const FamilySchema = {
+  name: 'Family',
+  primaryKey: 'id',
+  properties: {
+    id: 'string', name: 'string',
+    husbandId: 'string?', wifeId: 'string?', childrenIds: 'string[]'
+  }
+};
+--------------------------------------------------------------------- */
+
+/* أدوات مساعدة عامة */
+function cloneDeep(v){ return (typeof structuredClone === 'function') ? structuredClone(v) : JSON.parse(JSON.stringify(v)); }
+const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function formatDateAr(iso){
+  if(!iso) return '—';
+  const parts = iso.split('-').map(Number);
+  return parts.length === 3 ? `${parts[2]} ${AR_MONTHS[parts[1]-1]} ${parts[0]}` : iso;
+}
+const yearOf   = (iso) => iso ? String(iso).slice(0,4) : '';
+const truncate = (s,n) => (s && s.length > n) ? s.slice(0, n-1) + '…' : (s || '');
+const clampNum = (v,min,max) => Math.min(max, Math.max(min, v));
+
+/* =====================================================================
+   2) DataService — طبقة الوصول إلى البيانات
+   ---------------------------------------------------------------------
+   تحاكي الواجهة التي ستوفرها Realm Database لاحقًا. جميع الدوال تُرجع
+   حاليًا بيانات وهمية ثابتة، دون أي عملية قراءة/كتابة حقيقية.
+===================================================================== */
+const DataService = {
+  // TODO: replace with actual Realm logic later
+  getAllPersons(){ return cloneDeep(MOCK_DATA.persons); },
+
+  // TODO: replace with actual Realm logic later
+  getPersonById(id){
+    const p = MOCK_DATA.persons.find(x => x.id === id);
+    return p ? cloneDeep(p) : null;
+  },
+
+  // TODO: replace with actual Realm logic later
+  addPerson(personObject){
+    console.warn('[DataService] addPerson(): غير مفعّلة في المرحلة الأولى — ستُنفَّذ عبر Realm لاحقًا.', personObject);
+    return null;
+  },
+
+  // TODO: replace with actual Realm logic later
+  updatePerson(id, personObject){
+    console.warn('[DataService] updatePerson(): غير مفعّلة في المرحلة الأولى — ستُنفَّذ عبر Realm لاحقًا.', id, personObject);
+    return null;
+  },
+
+  // TODO: replace with actual Realm logic later
+  deletePerson(id){
+    console.warn('[DataService] deletePerson(): غير مفعّلة في المرحلة الأولى — ستُنفَّذ عبر Realm لاحقًا.', id);
+    return false;
+  },
+
+  // TODO: replace with actual Realm logic later
+  getAllFamilies(){ return cloneDeep(MOCK_DATA.families); }
+};
+
+/* =====================================================================
+   3) RendererState — حالة العرض الحالية للواجهة
+===================================================================== */
+const RendererState = {
+  selectedPersonId: null,
+  zoom: 1, panX: 0, panY: 0,
+  minZoom: 0.3, maxZoom: 2.5,
+  autoFit: true,                    // إعادة الملاءمة التلقائية عند تغيير حجم النافذة
+  activeCategory: 'all',
+  searchQuery: '',
+  isFullscreen: false
+};
+
+/* التصنيفات المتاحة في اللوحة اليمنى */
+const CATEGORIES = [
+  { id:'all',      label:'كل الأشخاص', test: () => true },
+  { id:'male',     label:'الذكور',     test: p => p.gender === 'male' },
+  { id:'female',   label:'الإناث',     test: p => p.gender === 'female' },
+  { id:'deceased', label:'المتوفون',   test: p => !!p.deathDate }
+];
+
+/* =====================================================================
+   4) TreeRenderer — رسم شجرة العائلة داخل SVG
+===================================================================== */
+const TreeRenderer = {
+  NS: 'http://www.w3.org/2000/svg',
+  NODE_W: 150, NODE_H: 56,
+  svg: null, viewport: null, container: null,
+
+  /* MOCK: إحداثيات ثابتة لأغراض النموذج الأولي فقط.
+     // TODO: استبدالها لاحقًا بخوارزمية ترتيب تلقائي حقيقية (Auto Layout). */
+  MOCK_TREE_LAYOUT: {
+    p1:{x:560,y:70},   p2:{x:730,y:70},
+    p3:{x:230,y:260},  p4:{x:400,y:260},  p5:{x:610,y:260},
+    p6:{x:780,y:260},  p7:{x:970,y:260},  p8:{x:1140,y:260},
+    p9:{x:155,y:450},  p10:{x:315,y:450}, p11:{x:475,y:450}, p12:{x:695,y:450}
+  },
+
+  init(){
+    this.svg       = document.getElementById('treeSvg');
+    this.viewport  = document.getElementById('treeViewport');
+    this.container = document.getElementById('graphicsViewTree');
+    this.build();
+    this.bindInteractions();
+    requestAnimationFrame(() => this.fitToView());
+  },
+
+  /* إنشاء عنصر SVG مع خصائصه */
+  el(tag, attrs = {}, text){
+    const n = document.createElementNS(this.NS, tag);
+    for(const [k,v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+    if(text != null) n.textContent = text;
+    return n;
+  },
+  line(x1,y1,x2,y2,cls){ return this.el('line', {x1,y1,x2,y2, class:cls}); },
+
+  /* بناء الرسم من بيانات DataService */
+  build(){
+    const persons  = DataService.getAllPersons();
+    const families = DataService.getAllFamilies();
+    this.viewport.replaceChildren();
+
+    /* عرض رسالة "لا توجد بيانات لعرضها" عند عدم وجود أي أشخاص */
+    document.getElementById('treeEmptyMessage').classList.toggle('hidden', persons.length > 0);
+    if(persons.length === 0) return;
+
+    const gEdges = this.el('g', {class:'edges-layer'});
+    const gNodes = this.el('g', {class:'nodes-layer'});
+    this.viewport.appendChild(gEdges);
+    this.viewport.appendChild(gNodes);
+
+    const pos = id => this.MOCK_TREE_LAYOUT[id];
+    const W = this.NODE_W, H = this.NODE_H;
+
+    /* الروابط: خط الزوجية + خطوط الأبناء */
+    families.forEach(f => {
+      const a = pos(f.husbandId), b = pos(f.wifeId);
+      if(a && b){
+        const [r,l] = a.x < b.x ? [a,b] : [b,a];
+        gEdges.appendChild(this.line(r.x + W/2, r.y, l.x - W/2, l.y, 'edge spouse-edge'));
+      }
+      if(Array.isArray(f.childrenIds) && f.childrenIds.length){
+        const anchor = a || b;
+        if(!anchor) return;
+        const mx = (a && b) ? (a.x + b.x)/2 : anchor.x;
+        const kids = f.childrenIds.map(pos).filter(Boolean);
+        if(!kids.length) return;
+        const py   = anchor.y + H/2;
+        const cy   = kids[0].y - H/2;
+        const busY = (py + cy) / 2;
+        const xs   = kids.map(k => k.x);
+        gEdges.appendChild(this.line(mx, py, mx, busY, 'edge'));
+        gEdges.appendChild(this.line(Math.min(...xs), busY, Math.max(...xs), busY, 'edge'));
+        kids.forEach(k => gEdges.appendChild(this.line(k.x, busY, k.x, cy, 'edge')));
+      }
+    });
+
+    /* عقد الأشخاص */
+    persons.forEach(p => {
+      const pt = pos(p.id);
+      if(pt) gNodes.appendChild(this.makeNode(p, pt));
+    });
+
+    this.setSelected(RendererState.selectedPersonId);
+  },
+
+  makeNode(p, pt){
+    const W = this.NODE_W, H = this.NODE_H;
+    const by = yearOf(p.birthDate), dy = yearOf(p.deathDate);
+    const yearsLabel = p.deathDate ? `${by} – ${dy}` : (by ? `م ${by}` : '');
+
+    const g = this.el('g', {
+      class: 'person-node' + (p.deathDate ? ' deceased' : ''),
+      'data-id': p.id,
+      transform: `translate(${pt.x - W/2},${pt.y - H/2})`
+    });
+    g.appendChild(this.el('title', {}, p.fullName));                     /* تلميح عند التمرير */
+    g.appendChild(this.el('rect', {class:'node-box', width:W, height:H, rx:10}));
+    g.appendChild(this.el('rect', {class:`node-accent ${p.gender}`, x:3, y:3, width:W-6, height:5, rx:2.5}));
+    g.appendChild(this.el('text', {class:'node-name',  x:W/2, y:28, 'text-anchor':'middle'}, truncate(p.fullName, 21)));
+    g.appendChild(this.el('text', {class:'node-years', x:W/2, y:44, 'text-anchor':'middle'}, yearsLabel));
+
+    g.addEventListener('click',   e => { e.stopPropagation(); UIController.selectPerson(p.id); });
+    g.addEventListener('dblclick',e => { e.stopPropagation(); UIController.openPersonDetails(p.id); });
+    return g;
+  },
+
+  setSelected(id){
+    this.viewport.querySelectorAll('.person-node').forEach(n =>
+      n.classList.toggle('selected', n.getAttribute('data-id') === id));
+  },
+
+  /* ---------- التكبير والتحريك (تفاعلات عرض فقط — ليست منطق أعمال) ---------- */
+  applyTransform(){
+    const {zoom, panX, panY} = RendererState;
+    this.viewport.setAttribute('transform', `translate(${panX} ${panY}) scale(${zoom})`);
+    const label = document.getElementById('zoomLevelLabel');
+    if(label) label.textContent = Math.round(zoom * 100) + '%';
+  },
+
+  zoomAtPoint(factor, px, py){
+    const s = RendererState;
+    const newZoom = clampNum(s.zoom * factor, s.minZoom, s.maxZoom);
+    const k = newZoom / s.zoom;
+    s.panX = px - k * (px - s.panX);
+    s.panY = py - k * (py - s.panY);
+    s.zoom = newZoom;
+    s.autoFit = false;
+    this.applyTransform();
+  },
+
+  zoomBy(factor){
+    this.zoomAtPoint(factor, this.container.clientWidth/2, this.container.clientHeight/2);
+  },
+
+  centerAtScale(scale){
+    const bbox = this.viewport.getBBox();
+    if(!bbox.width) return;
+    const cw = this.container.clientWidth, ch = this.container.clientHeight;
+    RendererState.zoom  = scale;
+    RendererState.panX  = (cw - scale*bbox.width)/2  - scale*bbox.x;
+    RendererState.panY  = (ch - scale*bbox.height)/2 - scale*bbox.y;
+    this.applyTransform();
+  },
+
+  fitToView(){
+    const bbox = this.viewport.getBBox();
+    if(!bbox.width) return;
+    const cw = this.container.clientWidth, ch = this.container.clientHeight, pad = 44;
+    const z = clampNum(Math.min((cw-pad*2)/bbox.width, (ch-pad*2)/bbox.height), RendererState.minZoom, 1.6);
+    this.centerAtScale(z);
+    RendererState.autoFit = true;
+  },
+
+  bindInteractions(){
+    /* تكبير بعجلة الفأرة حول مؤشر الفأرة */
+    this.container.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = this.container.getBoundingClientRect();
+      this.zoomAtPoint(e.deltaY < 0 ? 1.12 : 1/1.12, e.clientX - rect.left, e.clientY - rect.top);
+    }, {passive:false});
+
+    /* السحب لتحريك اللوحة */
+    let panning = false, lastX = 0, lastY = 0;
+    this.svg.addEventListener('pointerdown', e => {
+      if(e.target.closest('.person-node')) return;   /* النقر على الأشخاص للتحديد وليس للتحريك */
+      panning = true; lastX = e.clientX; lastY = e.clientY;
+      this.container.classList.add('panning');
+      this.svg.setPointerCapture(e.pointerId);
+    });
+    this.svg.addEventListener('pointermove', e => {
+      if(!panning) return;
+      RendererState.panX += e.clientX - lastX;
+      RendererState.panY += e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      RendererState.autoFit = false;
+      this.applyTransform();
+    });
+    const stopPan = () => { panning = false; this.container.classList.remove('panning'); };
+    this.svg.addEventListener('pointerup', stopPan);
+    this.svg.addEventListener('pointercancel', stopPan);
+  }
+};
+
+/* =====================================================================
+   5) UIController — وحدة التحكم الرئيسية في الواجهة
+===================================================================== */
+const UIController = {
+
+  init(){
+    this.bindMenus();
+    this.bindGlobalActions();
+    this.bindRightPanel();
+    this.bindDialogs();
+    this.bindSplitters();
+    TreeRenderer.init();
+
+    this.renderCategories();
+    this.renderFamiliesTree();
+    this.renderPersonsList();
+    this.updateStatusBar();
+
+    /* تحديد الشخص الأول افتراضيًا لعرض بطاقة المعلومات */
+    const first = DataService.getAllPersons()[0];
+    if(first) this.selectPerson(first.id);
+
+    window.addEventListener('resize', () => { if(RendererState.autoFit) TreeRenderer.fitToView(); });
+    document.addEventListener('fullscreenchange', () => {
+      RendererState.isFullscreen = !!document.fullscreenElement;
+      requestAnimationFrame(() => TreeRenderer.fitToView());
+    });
+  },
+
+  /* ------------------------- شريط القوائم ------------------------- */
+  bindMenus(){
+    const menuBar = document.getElementById('menuBar');
+    const closeAll = () => menuBar.querySelectorAll('.menu-root.open').forEach(m => m.classList.remove('open'));
+
+    menuBar.querySelectorAll('.menu-root').forEach(root => {
+      const btn = root.querySelector('.menu-btn');
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const wasOpen = root.classList.contains('open');
+        closeAll();
+        if(!wasOpen) root.classList.add('open');
+      });
+      root.addEventListener('mouseenter', () => {
+        if(menuBar.querySelector('.menu-root.open') && !root.classList.contains('open')){
+          closeAll(); root.classList.add('open');
+        }
+      });
+    });
+
+    /* إغلاق القائمة بعد اختيار إجراء */
+    menuBar.addEventListener('click', e => { if(e.target.closest('.menu-action')) closeAll(); });
+    /* الإغلاق عند النقر خارج القوائم أو بزر Escape */
+    document.addEventListener('click', e => { if(!e.target.closest('#menuBar')) closeAll(); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAll(); });
+  },
+
+  /* ربط موحد لكل الأزرار التي تحمل data-action (القوائم + الأشرطة + البطاقة) */
+  bindGlobalActions(){
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if(btn) this.handleAction(btn.dataset.action, btn.dataset.label || btn.dataset.action);
+    });
+  },
+
+  /* معالجة الإجراءات: بعضها تفاعلات عرض فعلية، والباقيplaceholders تُستبدل لاحقًا */
+  handleAction(action, label){
+    switch(action){
+      case 'zoomIn':      TreeRenderer.zoomBy(1.2); break;
+      case 'zoomOut':     TreeRenderer.zoomBy(1/1.2); break;
+      case 'zoomReset':   TreeRenderer.centerAtScale(1); RendererState.autoFit = false; break;
+      case 'recenter':    TreeRenderer.fitToView(); break;
+      case 'autoLayout':
+        showToast(`ميزة "${label}" مكانية — ستُفعَّل مع محرك الترتيب الحقيقي في مرحلة لاحقة.`, 'warn');
+        TreeRenderer.fitToView();
+        break;
+      case 'fullscreen':  this.toggleFullscreen(); break;
+      case 'focusSearch': document.getElementById('searchInput').focus(); break;
+      case 'about':       document.getElementById('aboutDialog').showModal(); break;
+      case 'showDetails':
+        if(RendererState.selectedPersonId) this.openPersonDetails(RendererState.selectedPersonId);
+        else showToast('يرجى اختيار شخص أولًا لعرض تفاصيله.', 'warn');
+        break;
+      case 'save': case 'saveAs': case 'backup':
+        showToast(`"${label}" سيُفعَّل عند الربط بقاعدة بيانات Realm (المرحلة الثالثة).`, 'info');
+        break;
+      default:
+        /* بقية الإجراءات منطق أعمال حقيقي يُنفَّذ في المراحل القادمة */
+        showToast(`ميزة "${label}" غير مفعّلة في هذا النموذج الأولي — ستُفعَّل في مرحلة لاحقة.`, 'info');
+    }
+  },
+
+  toggleFullscreen(){
+    const el = document.getElementById('panelCenter');
+    try{
+      if(!document.fullscreenElement){
+        if(el.requestFullscreen) el.requestFullscreen();
+        else showToast('متصفحك لا يدعم وضع ملء الشاشة.', 'warn');
+      }else{
+        document.exitFullscreen();
+      }
+    }catch(err){
+      showToast('تعذر تفعيل وضع ملء الشاشة.', 'error');
+    }
+  },
+
+  /* ------------------------- اللوحة اليمنى ------------------------- */
+  bindRightPanel(){
+    /* البحث: تصفية عرض فقط على مستوى الواجهة (UI Filter) —
+       // TODO: استبدالها لاحقًا بمنطق بحث حقيقي فوق Realm. */
+    document.getElementById('searchInput').addEventListener('input', e => {
+      RendererState.searchQuery = e.target.value.trim();
+      this.renderPersonsList();
+    });
+
+    document.getElementById('categoryList').addEventListener('click', e => {
+      const btn = e.target.closest('.category-btn');
+      if(!btn) return;
+      RendererState.activeCategory = btn.dataset.category;
+      this.renderCategories();
+      this.renderPersonsList();
+    });
+
+    /* اختيار شخص من القوائم */
+    const onRowClick = e => {
+      const row = e.target.closest('.person-row');
+      if(row) this.selectPerson(row.dataset.id);
+    };
+    document.getElementById('personList').addEventListener('click', onRowClick);
+    document.getElementById('treeViewFamilies').addEventListener('click', e => {
+      const head = e.target.closest('.family-head');
+      if(head){ head.closest('.family-item').classList.toggle('collapsed'); return; }
+      onRowClick(e);
+    });
+  },
+
+  renderCategories(){
+    const persons = DataService.getAllPersons();
+    const wrap = document.getElementById('categoryList');
+    wrap.replaceChildren();
+    CATEGORIES.forEach(cat => {
+      const count = persons.filter(p => cat.id === 'all' ? true : cat.test(p)).length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'category-btn' + (RendererState.activeCategory === cat.id ? ' active' : '');
+      btn.dataset.category = cat.id;
+      btn.innerHTML = `<span>${cat.label}</span><span class="count-badge">${count}</span>`;
+      wrap.appendChild(btn);
+    });
+  },
+
+  /* صف شخص (يُستخدم في قائمة الأشخاص وشجرة العائلات) */
+  personRowHTML(p, small){
+    const initial = p.fullName.trim().charAt(0);
+    const sub = (p.birthDate ? `م ${yearOf(p.birthDate)}` : '') + (p.deathDate ? ' • متوفى' : '');
+    return `<button type="button" class="person-row${small ? ' small' : ''}" data-id="${p.id}" title="${p.fullName}">
+      <span class="person-avatar ${p.gender}">${initial}</span>
+      <span class="person-meta">
+        <span class="person-name">${p.fullName}</span>
+        <span class="person-sub">${sub}</span>
+      </span>
+    </button>`;
+  },
+
+  renderPersonsList(){
+    const persons  = DataService.getAllPersons();
+    const cat      = CATEGORIES.find(c => c.id === RendererState.activeCategory) || CATEGORIES[0];
+    const q        = RendererState.searchQuery;
+    const filtered = persons.filter(p => cat.test(p)).filter(p => !q || p.fullName.includes(q));
+
+    const wrap = document.getElementById('personList');
+    wrap.innerHTML = filtered.length
+      ? filtered.map(p => this.personRowHTML(p)).join('')
+      : '<div class="list-empty">لا توجد نتائج مطابقة</div>';
+    document.getElementById('personListCount').textContent = filtered.length;
+    this.syncSelectionInLists();
+  },
+
+  renderFamiliesTree(){
+    const families = DataService.getAllFamilies();
+    const wrap = document.getElementById('treeViewFamilies');
+    wrap.replaceChildren();
+
+    families.forEach(f => {
+      const husband = DataService.getPersonById(f.husbandId);
+      const wife    = DataService.getPersonById(f.wifeId);
+      const item = document.createElement('div');
+      item.className = 'family-item';
+      item.innerHTML = `
+        <button type="button" class="family-head" title="${f.name}">
+          <svg class="chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="family-tt">
+            <span class="family-name">${f.name}</span>
+            <span class="family-sub">الزوج: ${husband ? husband.fullName : '—'} • الزوجة: ${wife ? wife.fullName : '—'}</span>
+          </span>
+        </button>
+        <div class="family-children"></div>`;
+      const kidsWrap = item.querySelector('.family-children');
+      const members = [husband, wife, ...f.childrenIds.map(id => DataService.getPersonById(id))].filter(Boolean);
+      kidsWrap.innerHTML = members.map(p => this.personRowHTML(p, true)).join('');
+      wrap.appendChild(item);
+    });
+  },
+
+  syncSelectionInLists(){
+    const sel = RendererState.selectedPersonId;
+    document.querySelectorAll('.person-row').forEach(r =>
+      r.classList.toggle('active', r.dataset.id === sel));
+  },
+
+  /* ------------------------- اختيار شخص ------------------------- */
+  selectPerson(id){
+    const p = DataService.getPersonById(id);
+    if(!p) return;
+    RendererState.selectedPersonId = id;
+    TreeRenderer.setSelected(id);
+    this.renderPersonCard(p);
+    this.syncSelectionInLists();
+    const row = document.querySelector(`#personList .person-row[data-id="${id}"]`);
+    if(row) row.scrollIntoView({block:'nearest'});
+  },
+
+  nameOf(id){ const p = id ? DataService.getPersonById(id) : null; return p ? p.fullName : '—'; },
+
+  renderPersonCard(p){
+    /* الصورة الرمزية والاسم والشارات */
+    const avatar = document.getElementById('personAvatar');
+    avatar.className = `big-avatar ${p.gender}`;
+    avatar.textContent = p.fullName.trim().charAt(0);
+    document.getElementById('personFullName').textContent = p.fullName;
+
+    const genderBadge = document.getElementById('personGenderBadge');
+    genderBadge.classList.remove('hidden');
+    genderBadge.className = `gender-badge ${p.gender}`;
+    genderBadge.textContent = p.gender === 'male' ? 'ذكر' : 'أنثى';
+
+    const deceasedBadge = document.getElementById('personDeceasedBadge');
+    deceasedBadge.classList.toggle('hidden', !p.deathDate);
+
+    /* شبكة المعلومات */
+    const childrenNames = (p.childrenIds || []).map(id => this.nameOf(id)).filter(n => n !== '—').join('، ') || '—';
+    const rows = [
+      ['الأب',          this.nameOf(p.fatherId)],
+      ['الأم',          this.nameOf(p.motherId)],
+      ['الزوج/الزوجة',  this.nameOf(p.spouseId)],
+      ['الأبناء',       childrenNames],
+      ['تاريخ الميلاد', formatDateAr(p.birthDate)],
+      ['مكان الميلاد',  p.birthPlace || '—'],
+      ['تاريخ الوفاة',  p.deathDate ? formatDateAr(p.deathDate) : null],
+      ['المهنة',        p.occupation || '—'],
+      ['الهاتف',        p.phone ? `<bdi dir="ltr">${p.phone}</bdi>` : '—'],
+      ['البريد الإلكتروني', p.email ? `<bdi dir="ltr">${p.email}</bdi>` : '—'],
+      ['العنوان',       p.address || '—']
+    ];
+    document.getElementById('personInfoGrid').innerHTML = rows.map(([label, value]) => {
+      if(label === 'تاريخ الوفاة'){
+        return `<div class="info-row"><dt>${label}</dt><dd class="${p.deathDate ? '' : 'alive'}">${p.deathDate ? formatDateAr(p.deathDate) : 'على قيد الحياة'}</dd></div>`;
+      }
+      return `<div class="info-row"><dt>${label}</dt><dd>${value}</dd></div>`;
+    }).join('');
+
+    /* الملاحظات */
+    const notesBlock = document.getElementById('personNotesBlock');
+    if(p.notes){ notesBlock.textContent = p.notes; notesBlock.classList.remove('hidden'); }
+    else notesBlock.classList.add('hidden');
+  },
+
+  /* نافذة التفاصيل الكاملة لشخص */
+  openPersonDetails(id){
+    const p = DataService.getPersonById(id);
+    if(!p){ showToast('الشخص غير موجود.', 'error'); return; }
+    document.getElementById('detailsTitle').textContent = `تفاصيل: ${p.fullName}`;
+    const childrenNames = (p.childrenIds || []).map(x => this.nameOf(x)).filter(n => n !== '—').join('، ') || '—';
+    const rows = [
+      ['المعرف', `<bdi dir="ltr">${p.id}</bdi>`],
+      ['الاسم الكامل', p.fullName],
+      ['النوع', p.gender === 'male' ? 'ذكر' : 'أنثى'],
+      ['الأب', this.nameOf(p.fatherId)],
+      ['الأم', this.nameOf(p.motherId)],
+      ['الزوج/الزوجة', this.nameOf(p.spouseId)],
+      ['الأبناء', childrenNames],
+      ['تاريخ الميلاد', formatDateAr(p.birthDate)],
+      ['مكان الميلاد', p.birthPlace || '—'],
+      ['الحالة', p.deathDate ? `متوفى — ${formatDateAr(p.deathDate)}` : 'على قيد الحياة'],
+      ['المهنة', p.occupation || '—'],
+      ['الهاتف', p.phone ? `<bdi dir="ltr">${p.phone}</bdi>` : '—'],
+      ['البريد الإلكتروني', p.email ? `<bdi dir="ltr">${p.email}</bdi>` : '—'],
+      ['العنوان', p.address || '—'],
+      ['ملاحظات', p.notes || '—'],
+      ['مسار الصورة', p.photoPath || 'لا توجد صورة']
+    ];
+    document.getElementById('detailsBody').innerHTML =
+      rows.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    document.getElementById('personDetailsDialog').showModal();
+  },
+
+  bindDialogs(){
+    document.querySelectorAll('[data-close-dialog]').forEach(btn =>
+      btn.addEventListener('click', e => e.target.closest('dialog').close()));
+  },
+
+  /* ---------------- الفواصل القابلة للسحب (QSplitter) ---------------- */
+  bindSplitters(){
+    const rootStyle = document.documentElement.style;
+
+    const setup = (handleId, compute, cssVar, defaultW) => {
+      const handle = document.getElementById(handleId);
+      let active = false, startX = 0, startW = 0;
+
+      handle.addEventListener('pointerdown', e => {
+        active = true; startX = e.clientX;
+        startW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVar)) || defaultW;
+        handle.setPointerCapture(e.pointerId);
+        document.body.classList.add('is-resizing');
+      });
+      handle.addEventListener('pointermove', e => {
+        if(!active) return;
+        const w = compute(e.clientX - startX, startW);
+        rootStyle.setProperty(cssVar, w + 'px');
+      });
+      const end = () => { active = false; document.body.classList.remove('is-resizing'); };
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+      handle.addEventListener('dblclick', () => rootStyle.removeProperty(cssVar));
+    };
+
+    /* في اتجاه RTL: سحب الفاصل الأيمن نحو اليسار يوسّع اللوحة اليمنى والعكس لليسرى */
+    setup('splitterRight', (dx,w) => clampNum(w - dx, 230, 430), '--panel-right-w', 280);
+    setup('splitterLeft',  (dx,w) => clampNum(w + dx, 270, 480), '--panel-left-w', 320);
+  },
+
+  /* ------------------------- شريط الحالة ------------------------- */
+  updateStatusBar(){
+    document.getElementById('statPersons').textContent  = DataService.getAllPersons().length;
+    document.getElementById('statFamilies').textContent = DataService.getAllFamilies().length;
+    /* // TODO: يُحدَّث لاحقًا بوقت الحفظ الفعلي من Realm */
+    document.getElementById('statLastSave').textContent = 'لم يتم الحفظ بعد';
+    document.getElementById('statDb').textContent       = 'غير متصلة — بيانات تجريبية';
+    document.getElementById('statVersion').textContent  = MOCK_DATA.project.version;
+  }
+};
+
+/* =====================================================================
+   التنبيهات (Toasts) — طبقة إشعارات مؤقتة
+===================================================================== */
+function showToast(message, type = 'info', duration = 3200){
+  const container = document.getElementById('toastContainer');
+  while(container.children.length >= 4) container.firstChild.remove();
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = message;
+  container.appendChild(t);
+  setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 320); }, duration);
+}
+
+/* =====================================================================
+   6) initApp — نقطة دخول التطبيق
+   ---------------------------------------------------------------------
+   تُستدعى عند تحميل الصفحة، وستبقى نفسها نقطة الدخول عند الترحيل
+   إلى Electron دون أي تعديل.
+===================================================================== */
+function initApp(){
+  UIController.init();
+}
+document.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
